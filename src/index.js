@@ -1,9 +1,21 @@
 'use strict';
 
+import Notiflix from 'notiflix';
+import Axios from 'axios';
+
 const search = document.querySelector('input[name="searchQuery"]');
 const searchButton = document.querySelector(
   '.search-form button[type="submit"]'
 );
+const gallery = document.querySelector('.gallery');
+
+//LocaL storage
+let searchQuery = localStorage.getItem('searchQuery') || '';
+let currentPage = parseInt(localStorage.getItem('currentPage')) || 1;
+
+const clearGallery = () => {
+  gallery.innerHTML = '';
+};
 
 //options API
 const showResult = image => {
@@ -16,48 +28,23 @@ const showResult = image => {
     comments,
     downloads,
   } = image;
-  const gallery = document.querySelector('.gallery');
 
-  const photoCard = document.createElement('div');
-  photoCard.classList.add('photo-card');
+  const infoItems = [
+    createInfoItem('Likes', likes),
+    createInfoItem('Views', views),
+    createInfoItem('Comments', comments),
+    createInfoItem('Downloads', downloads),
+  ];
 
-  const img = document.createElement('img');
-  img.setAttribute('src', webformatURL);
-  img.alt = tags;
-  img.loading = 'lazy';
+  const infoHTML = infoItems.map(infoItem => infoItem.outerHTML).join('');
 
-  img.addEventListener('click', () => {
-    openModal(largeImageURL);
-  });
-
-  const openModal = imageURL => {
-    const modal = document.getElementById('modal');
-    const modalImage = document.querySelector('.modal-image');
-
-    modalImage.src = imageURL;
-    modal.style.display = 'block';
-  };
-
-  const closeModal = () => {
-    const modal = document.getElementById('modal');
-
-    modal.style.display = 'none';
-  };
-
-  const closeBtn = document.querySelector('.close');
-  closeBtn.addEventListener('click', closeModal);
-
-  const info = document.createElement('div');
-  info.classList.add('info');
-
-  const likesInfo = createInfoItem('Likes', likes);
-  const viewsInfo = createInfoItem('Views', views);
-  const commentsInfo = createInfoItem('Comments', comments);
-  const downloadsInfo = createInfoItem('Downloads', downloads);
-
-  info.append(likesInfo, viewsInfo, commentsInfo, downloadsInfo);
-  photoCard.append(img, info);
-  gallery.appendChild(photoCard);
+  const photoCardHTML = `<div class="photo-card">
+      <img src="${webformatURL}" alt="${tags}" loading="lazy" data-large-image="${largeImageURL}"  />
+      <div class="info">
+        ${infoHTML}
+      </div>
+    </div>`;
+  gallery.innerHTML += photoCardHTML;
 };
 
 const modal = document.getElementById('modal');
@@ -66,6 +53,22 @@ modal.addEventListener('click', event => {
     closeModal();
   }
 });
+
+const openModal = imageURL => {
+  const modal = document.getElementById('modal');
+  const modalImage = document.querySelector('.modal-image');
+
+  modalImage.src = imageURL;
+  modal.style.display = 'block';
+};
+
+const closeModal = () => {
+  const modal = document.getElementById('modal');
+  modal.style.display = 'none';
+};
+
+const closeBtn = document.querySelector('.close');
+closeBtn.addEventListener('click', closeModal);
 
 const createInfoItem = (label, value) => {
   const infoItem = document.createElement('p');
@@ -83,41 +86,47 @@ const requestParams = {
   safesearch: true,
 };
 
-const getRequestURL = (params, page) => {
+const getRequestURL = params => {
   const baseURL = 'https://pixabay.com/api/';
-  const queryParams = {
-    ...params,
-    page,
-    per_page: 40,
-  };
-  const queryString = Object.entries(queryParams)
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
-    )
-    .join('&');
-  return `${baseURL}?${queryString}`;
+  return Axios.get(baseURL, {
+    params: {
+      ...params,
+      per_page: 40,
+    },
+  }).then(response => {
+    const queryString = Object.entries(response.config.params)
+      .map(
+        ([key, value]) =>
+          `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
+      )
+      .join('&');
+    return `${baseURL}?${queryString}`;
+  });
 };
 
-const getData = async (searchValue, page = 1) => {
-  requestParams.q = searchValue;
-  const URL = getRequestURL(requestParams, page);
+const getData = async (page = 1) => {
+  requestParams.q = searchQuery;
+  requestParams.page = page;
+  const URL = await getRequestURL(requestParams);
 
   try {
-    const response = await axios.get(URL);
+    const response = await Axios.get(URL);
     const result = response.data;
-
-    if (result.hits.length > 0) {
-      result.hits.forEach(showResult);
+    console.log(result);
+    if (result.hits && result.hits.length > 0) {
+      clearGallery();
+      result.hits.forEach(image => {
+        showResult(image);
+      });
       showLoadMoreButton(result.totalHits, result.hits.length, page);
     } else {
-      notiflix.Notify.failure(
+      Notiflix.Notify.failure(
         'Sorry, there are no images matching your search query. Please try again.'
       );
     }
   } catch (error) {
     console.error(error);
-    notiflix.Notify.failure(
+    Notiflix.Notify.failure(
       'An error occurred while fetching data. Please try again.'
     );
   }
@@ -127,70 +136,37 @@ const showLoadMoreButton = (totalHits, currentCount, page) => {
   const loadMoreButton = document.querySelector('.load-more');
   if (currentCount >= totalHits) {
     loadMoreButton.style.display = 'none';
-    notiflix.Notify.info(
+    Notiflix.Notify.info(
       "We're sorry, but you've reached the end of search results."
     );
   } else {
     loadMoreButton.style.display = 'block';
-    loadMoreButton.dataset.page = page;
+    currentPage = page;
+    localStorage.setItem('currentPage', currentPage);
   }
 };
 
 const loadMoreButton = document.querySelector('.load-more');
 loadMoreButton.addEventListener('click', () => {
-  const page = parseInt(loadMoreButton.dataset.page) + 1;
-  const searchValue = search.value;
-  getData(searchValue, page);
+  const page = currentPage + 1;
+  getData(page);
 });
 
 //Event Listener
-searchButton.addEventListener('click', e => {
-  e.preventDefault();
-  const gallery = document.querySelector('.gallery');
-  const searchValue = search.value;
-  getData(searchValue);
-  search.value = '';
+
+gallery.addEventListener('click', e => {
+  if (e.target.tagName === 'IMG') {
+    const largeImageURL = e.target.getAttribute('data-large-image');
+    openModal(largeImageURL);
+  }
 });
 
-//AXIOS
-// Make a request for a user with a given ID
-axios
-  .get('/user?ID=12345')
-  .then(function (response) {
-    // handle success
-    console.log(response);
-  })
-  .catch(function (error) {
-    // handle error
-    console.log(error);
-  })
-  .finally(function () {
-    // always executed
-  });
-
-// Optionally the request above could also be done as
-axios
-  .get('/user', {
-    params: {
-      ID: 12345,
-    },
-  })
-  .then(function (response) {
-    console.log(response);
-  })
-  .catch(function (error) {
-    console.log(error);
-  })
-  .finally(function () {
-    // always executed
-  });
-
-// Want to use async/await? Add the `async` keyword to your outer function/method.
-async function getUser() {
-  try {
-    const response = await axios.get('/user?ID=12345');
-    console.log(response);
-  } catch (error) {
-    console.error(error);
-  }
-}
+searchButton.addEventListener('click', e => {
+  e.preventDefault();
+  searchQuery = search.value;
+  localStorage.setItem('searchQuery', searchQuery);
+  currentPage = 1;
+  localStorage.setItem('currentPage', currentPage);
+  getData(currentPage);
+  search.value = '';
+});
