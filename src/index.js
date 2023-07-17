@@ -114,7 +114,6 @@ const getData = async (page = 1) => {
     const result = response.data;
     console.log(result);
     if (result.hits && result.hits.length > 0) {
-      clearGallery();
       result.hits.forEach(image => {
         showResult(image);
       });
