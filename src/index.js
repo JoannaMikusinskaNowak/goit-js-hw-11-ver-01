@@ -8,6 +8,7 @@ const searchButton = document.querySelector(
   '.search-form button[type="submit"]'
 );
 const gallery = document.querySelector('.gallery');
+const loadMoreButton = document.querySelector('.load-more');
 
 //LocaL storage
 let searchQuery = localStorage.getItem('searchQuery') || '';
@@ -114,15 +115,24 @@ const getData = async (page = 1) => {
     const result = response.data;
     console.log(result);
     if (result.hits && result.hits.length > 0) {
+      if(page === 1) {
+      clearGallery();
+      }
       result.hits.forEach(image => {
         showResult(image);
       });
-      showLoadMoreButton(result.totalHits, result.hits.length, page);
+      showLoadMoreButton(result.totalHits, gallery.children.length, page);
     } else {
+      if (page === 1) {
       Notiflix.Notify.failure(
         'Sorry, there are no images matching your search query. Please try again.'
       );
+    } else {
+      Notiflix.Notify.failure(
+        'Sorry, there are no more images available for loading.
+      );
     }
+  }
   } catch (error) {
     console.error(error);
     Notiflix.Notify.failure(
@@ -132,7 +142,6 @@ const getData = async (page = 1) => {
 };
 //przycisk Load more
 const showLoadMoreButton = (totalHits, currentCount, page) => {
-  const loadMoreButton = document.querySelector('.load-more');
   if (currentCount >= totalHits) {
     loadMoreButton.style.display = 'none';
     Notiflix.Notify.info(
@@ -145,11 +154,31 @@ const showLoadMoreButton = (totalHits, currentCount, page) => {
   }
 };
 
-const loadMoreButton = document.querySelector('.load-more');
-loadMoreButton.addEventListener('click', () => {
+/*const appendMoreData = async () => {
   const page = currentPage + 1;
-  getData(page);
-});
+  const URL = await getRequestURL(requestParams);
+
+  try {
+    const response = await Axios.get(URL);
+    const result = response.data;
+    console.log(result);
+    if (result.hits && result.hits.length > 0) {
+      result.hits.forEach(image => {
+        showResult(image);
+      });
+      showLoadMoreButton(result.totalHits, gallery.children.length, page);
+    } else {
+      Notiflix.Notify.failure(
+        'Sorry, there are no more images available for loading.'
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    Notiflix.Notify.failure(
+      'An error occurred while fetching more data. Please try again.'
+    );
+  }
+};*/
 
 //Event Listener
 
@@ -169,3 +198,13 @@ searchButton.addEventListener('click', e => {
   getData(currentPage);
   search.value = '';
 });
+
+loadMoreButton.addEventListener('click', () => {
+  const page = currentPage + 1;
+  getData(page);
+
+});
+/*loadMoreButton.addEventListener('click', () => {
+  const page = currentPage + 1;
+  getData(page);
+});*/
